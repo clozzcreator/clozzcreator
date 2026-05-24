@@ -542,22 +542,34 @@ async function cloudLoad(code){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PERSISTENCE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let isLoading = false; // garde pour bloquer l'autosave pendant le chargement
+
 async function loadDB(){
+  isLoading = true;
   try {
     const code = localStorage.getItem('clozz_active_code');
     if(code){
-      userCode = code;
-      const cloudData = await cloudLoad(code);
-      if(cloudData && cloudData.projects){
+      userCode = code.toUpperCase();
+      localStorage.setItem('clozz_active_code', userCode);
+
+      const cloudData = await cloudLoad(userCode);
+      if(cloudData && cloudData.projects && Object.keys(cloudData.projects).length > 0){
         db = cloudData;
       } else {
-        db = {projects:{}};
+        try {
+          const raw = localStorage.getItem('clozz_cache_' + userCode);
+          if(raw){
+            const p = JSON.parse(raw);
+            if(p && p.data && p.data.projects) db = p.data;
+          }
+        } catch(e){}
       }
       showScreen('projects');
     } else {
       showScreen('code');
     }
   } catch(e){ showScreen('code'); }
+  finally { isLoading = false; }
 }
 
 function saveDB(){
@@ -1273,7 +1285,7 @@ document.addEventListener('blur',saveStep,true);
 // Sauvegarde à chaque frappe sur n'importe quel champ (debounce 800ms)
 let inputSaveTimer = null;
 document.addEventListener('input', e => {
-  if(!pid) return;
+  if(!pid || isLoading) return;
   clearTimeout(inputSaveTimer);
   inputSaveTimer = setTimeout(()=>{ saveStep(); saveDB(); }, 800);
 });
